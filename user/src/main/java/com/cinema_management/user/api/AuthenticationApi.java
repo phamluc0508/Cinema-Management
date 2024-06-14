@@ -17,7 +17,7 @@ public class AuthenticationApi {
 
     private final AuthenticationService service;
 
-    @PostMapping("/login")
+    @PostMapping("/token")
     protected ResponseEntity login(
             @RequestBody AuthenticationDTO request
     ){
