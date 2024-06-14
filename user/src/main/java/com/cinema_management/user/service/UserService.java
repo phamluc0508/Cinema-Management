@@ -1,14 +1,18 @@
 package com.cinema_management.user.service;
 
+import com.cinema_management.user.enums.Role;
 import com.cinema_management.user.model.User;
 import com.cinema_management.user.repository.UserRepo;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -26,6 +30,12 @@ public class UserService {
             throw new RuntimeException("username-existed");
         }
         request.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        HashSet<String> roles = new HashSet<>();
+        roles.add(Role.USER.name());
+
+        request.setRoles(roles);
+
         return repo.save(request);
     }
 
@@ -56,8 +66,16 @@ public class UserService {
         return repo.findAll();
     }
 
+    @PostAuthorize("returnObject.username == authentication.name")
     public User getById(String userId){
         return repo.findById(userId).orElseThrow(() -> new RuntimeException("not-found-with-userId"));
+    }
+
+    public User getMyInfo(){
+        var context = SecurityContextHolder.getContext();
+        String name = context.getAuthentication().getName();
+
+        return repo.findByUsername(name).orElseThrow(() -> new RuntimeException("not-found-user"));
     }
 
 }
