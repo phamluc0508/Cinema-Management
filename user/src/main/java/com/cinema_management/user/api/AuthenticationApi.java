@@ -1,11 +1,9 @@
 package com.cinema_management.user.api;
 
 import com.cinema_management.user.dto.AuthenticationDTO;
-import com.cinema_management.user.dto.IntrospectDTO;
 import com.cinema_management.user.service.AuthenticationService;
 import com.cinema_management.user.utility.ResponseUtils;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.annotations.Parameter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

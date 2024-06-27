@@ -1,6 +1,5 @@
 package com.cinema_management.user.service;
 
-import ch.qos.logback.core.spi.ErrorCodes;
 import com.cinema_management.user.dto.AuthenticationDTO;
 import com.cinema_management.user.dto.IntrospectDTO;
 import com.cinema_management.user.model.InvalidatedToken;
@@ -15,16 +14,13 @@ import com.nimbusds.jwt.SignedJWT;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import javax.management.InvalidApplicationException;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collection;
 import java.util.Date;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -79,14 +75,16 @@ public class AuthenticationService {
 
         return jwsObject.serialize();
     }
-    public String authenticate(AuthenticationDTO request){
+    public IntrospectDTO authenticate(AuthenticationDTO request){
         var user = userRepo.findByUsername(request.getUsername()).orElseThrow(() -> new RuntimeException("not-found-with-username"));
 
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
             throw new RuntimeException("wrong-password");
         }
+        IntrospectDTO result = new IntrospectDTO();
+        result.setToken(generateToken(user));
 
-        return generateToken(user);
+        return result;
     }
 
     public void logout(String token) throws ParseException, JOSEException {
@@ -131,7 +129,7 @@ public class AuthenticationService {
         return true;
     }
 
-    public String refreshToken(String token) throws ParseException, JOSEException {
+    public IntrospectDTO refreshToken(String token) throws ParseException, JOSEException {
         var signJwt = verifyToken(token);
 
         logout(token);
@@ -139,7 +137,10 @@ public class AuthenticationService {
         var username = signJwt.getJWTClaimsSet().getSubject();
         var user = userRepo.findByUsername(username).orElseThrow(() -> new EntityNotFoundException("not-found-with-username"));
 
-        return generateToken(user);
+        IntrospectDTO result = new IntrospectDTO();
+        result.setToken(generateToken(user));
+
+        return result;
     }
 
 }
