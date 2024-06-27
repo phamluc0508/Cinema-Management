@@ -1,6 +1,9 @@
 package com.cinema_management.user.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,9 +25,11 @@ public class User {
     private String id;
 
     @Column
+    @Email(message = "invalid-email-format")
     private String email;
 
     @Column
+    @Pattern(regexp = "^0\\d{9}$", message = "invalid-phone-format")
     private String phoneNumber;
 
     @Column
@@ -37,10 +42,11 @@ public class User {
     private String username;
 
     @Column
+    @Size(min = 8, message = "password must be ae least 8 characters")
     private String password;
 
-
-    Set<String> roles;
+    @ManyToMany
+    Set<Role> roles;
 
 
 }

@@ -3,12 +3,11 @@ package com.cinema_management.user.api;
 import com.cinema_management.user.dto.AuthenticationDTO;
 import com.cinema_management.user.dto.IntrospectDTO;
 import com.cinema_management.user.service.AuthenticationService;
+import com.cinema_management.user.utility.ResponseUtils;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.annotations.Parameter;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
@@ -22,20 +21,43 @@ public class AuthenticationApi {
             @RequestBody AuthenticationDTO request
     ){
         try {
-            return ResponseEntity.ok(service.authenticate(request));
+            return ResponseUtils.handlerSuccess(service.authenticate(request));
         } catch (Exception ex){
-            return ResponseEntity.badRequest().body(ex.getMessage());
+            return ResponseUtils.handlerException(ex);
         }
     }
 
     @PostMapping("/introspect")
     protected ResponseEntity introspect(
-            @RequestBody IntrospectDTO request
+            @RequestParam String token
     ){
         try {
-            return ResponseEntity.ok(service.introspect(request));
+            return ResponseUtils.handlerSuccess(service.introspect(token));
         } catch (Exception ex){
-            return ResponseEntity.badRequest().body(ex.getMessage());
+            return ResponseUtils.handlerException(ex);
+        }
+    }
+
+    @PostMapping("/logout")
+    protected ResponseEntity logout(
+            @RequestParam String token
+    ){
+        try {
+            service.logout(token);
+            return ResponseUtils.handlerSuccess();
+        } catch (Exception ex){
+            return ResponseUtils.handlerException(ex);
+        }
+    }
+
+    @PostMapping("/refresh")
+    protected ResponseEntity refresh(
+            @RequestParam String token
+    ){
+        try {
+            return ResponseUtils.handlerSuccess(service.refreshToken(token));
+        } catch (Exception ex){
+            return ResponseUtils.handlerException(ex);
         }
     }
 }

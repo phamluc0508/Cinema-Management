@@ -1,31 +1,39 @@
 package com.cinema_management.user.service;
 
+import ch.qos.logback.core.spi.ErrorCodes;
 import com.cinema_management.user.dto.AuthenticationDTO;
 import com.cinema_management.user.dto.IntrospectDTO;
+import com.cinema_management.user.model.InvalidatedToken;
 import com.cinema_management.user.model.User;
+import com.cinema_management.user.repository.InvalidatedTokenRepo;
 import com.cinema_management.user.repository.UserRepo;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import javax.management.InvalidApplicationException;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
 import java.util.StringJoiner;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AuthenticationService {
     private final UserRepo userRepo;
+    private final InvalidatedTokenRepo invalidatedTokenRepo;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${jwt.signer.key}")
@@ -34,7 +42,15 @@ public class AuthenticationService {
     private String buildScope(User user){
         StringJoiner stringJoiner = new StringJoiner(" ");
         if(!CollectionUtils.isEmpty(user.getRoles())){
-            user.getRoles().forEach(stringJoiner::add);
+            user.getRoles().forEach(role -> {
+                stringJoiner.add("ROLE_" + role.getName());
+                if(!CollectionUtils.isEmpty(role.getPermissions())){
+                    role.getPermissions().forEach(permission -> {
+                        stringJoiner.add(permission.getName());
+                    });
+                }
+
+            });
         }
         return stringJoiner.toString();
     }
@@ -47,6 +63,7 @@ public class AuthenticationService {
                 .issuer("localhost:8080")
                 .issueTime(new Date())
                 .expirationTime(new Date(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()))
+                .jwtID(UUID.randomUUID().toString())
                 .claim("scope", buildScope(user))
                 .build();
 
@@ -72,24 +89,57 @@ public class AuthenticationService {
         return generateToken(user);
     }
 
-    public Boolean introspect(IntrospectDTO request){
-        var token = request.getToken();
+    public void logout(String token) throws ParseException, JOSEException {
+        var signedToken = verifyToken(token);
 
-        JWSVerifier verifier = null;
-        try {
-            verifier = new MACVerifier(SIGNER_KEY.getBytes());
-            SignedJWT signedJWT = SignedJWT.parse(token);
+        String jid = signedToken.getJWTClaimsSet().getJWTID();
+        Date expiryTime = signedToken.getJWTClaimsSet().getExpirationTime();
 
-            Date expityTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+        InvalidatedToken invalidatedToken = new InvalidatedToken();
+        invalidatedToken.setId(jid);
+        invalidatedToken.setExpiryTime(expiryTime);
 
-            var verified = signedJWT.verify(verifier);
+        invalidatedTokenRepo.save(invalidatedToken);
+    }
 
-            return verified && expityTime.after(new Date());
-        } catch (JOSEException e) {
-            throw new RuntimeException(e);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
+    private SignedJWT verifyToken(String token) throws JOSEException, ParseException {
+        JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
+        SignedJWT signedJWT = SignedJWT.parse(token);
+
+        Date expityTime = signedJWT.getJWTClaimsSet().getExpirationTime();
+
+        var verified = signedJWT.verify(verifier);
+        if(!verified && !expityTime.after(new Date())){
+            throw new RuntimeException("User-is-not-authenticated");
         }
+
+        if(invalidatedTokenRepo.existsById(signedJWT.getJWTClaimsSet().getJWTID())){
+            throw new RuntimeException("User-is-not-authenticated");
+        };
+
+        return signedJWT;
+    }
+
+    public Boolean introspect(String token) throws ParseException, JOSEException {
+
+        try{
+            verifyToken(token);
+        } catch (Exception ex){
+            return false;
+        }
+
+        return true;
+    }
+
+    public String refreshToken(String token) throws ParseException, JOSEException {
+        var signJwt = verifyToken(token);
+
+        logout(token);
+
+        var username = signJwt.getJWTClaimsSet().getSubject();
+        var user = userRepo.findByUsername(username).orElseThrow(() -> new EntityNotFoundException("not-found-with-username"));
+
+        return generateToken(user);
     }
 
 }

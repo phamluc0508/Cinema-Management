@@ -1,13 +1,16 @@
 package com.cinema_management.user.service;
 
+import com.cinema_management.user.dto.UserDTO;
 import com.cinema_management.user.enums.Role;
 import com.cinema_management.user.model.User;
+import com.cinema_management.user.repository.RoleRepo;
 import com.cinema_management.user.repository.UserRepo;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,24 +25,25 @@ import java.util.List;
 public class UserService {
 
     private final UserRepo repo;
+    private final RoleRepo roleRepo;
     private final PasswordEncoder passwordEncoder;
 
     public User createUser (User request){
-        var exist = repo.findByUsername(request.getUsername());
-        if(exist.isPresent()){
+        var exist = repo.existsByUsername(request.getUsername());
+        if(exist){
             throw new RuntimeException("username-existed");
         }
         request.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        HashSet<String> roles = new HashSet<>();
-        roles.add(Role.USER.name());
+//        HashSet<String> roles = new HashSet<>();
+//        roles.add(Role.USER.name());
 
-        request.setRoles(roles);
+//        request.setRoles(roles);
 
         return repo.save(request);
     }
 
-    public User updateUser(String userId, User request){
+    public User updateUser(String userId, UserDTO request){
         var exist = repo.findByUsernameAndIdIsNot(request.getUsername(), userId);
         if(exist.isPresent()){
             throw new RuntimeException("username-existed");
@@ -53,6 +57,9 @@ public class UserService {
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
+        var roles = roleRepo.findAllById(request.getRoles());
+        user.setRoles(new HashSet<>(roles));
+
         return repo.save(user);
     }
 
@@ -62,6 +69,8 @@ public class UserService {
         return "delete success user with id:" + userId;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+//    @PreAuthorize("hasAuthority('CREATE_DATA')")
     public List<User> getUsers(){
         return repo.findAll();
     }
